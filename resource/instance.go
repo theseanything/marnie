@@ -15,9 +15,30 @@ type Instance struct {
 }
 
 func (i *Instance) CheckSecurityGroups(protocol string, ip_address string, port string) bool {
-  fmt.Println(protocol)
-  fmt.Println(ip_address)
-  fmt.Println(port)
+
+  var groupIds []*string
+  for _, sg := range i.SecurityGroups {
+    groupIds = append(groupIds, sg.GroupId)
+  }
+  sess := session.Must(session.NewSession())
+  svc := ec2.New(sess)
+
+  params := &ec2.DescribeSecurityGroupsInput{
+    GroupIds: groupIds,
+  }
+  response, _ := svc.DescribeSecurityGroups(params)
+
+  var securityGroups []*SecurityGroup
+  for _, sg := range response.SecurityGroups {
+    s := SecurityGroup{*sg}
+    s.CheckIngress()
+    s.CheckEgress()
+    securityGroups = append(securityGroups, &s)
+  }
+
+
+  fmt.Println(response)
+
   return true
 }
 
