@@ -21,12 +21,10 @@
 package cmd
 
 import (
-
 	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/theseanything/marnie/resource"
-
 )
 
 // connectCmd represents the connect command
@@ -44,7 +42,7 @@ to quickly create a Cobra application.`,
 		name_tag := args[0]
 
 		instance := *resource.NewInstanceFromNameTag(name_tag)
-		instance.CheckSecurityGroups("tcp", "10.0.0.0", "80")
+		instance.CheckSecurityGroups("tcp", "10.0.0.0", 80)
 		fmt.Println(*instance.InstanceId)
 
 	},
