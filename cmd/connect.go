@@ -27,6 +27,10 @@ import (
 	"github.com/theseanything/marnie/resource"
 )
 
+var sourceProtocol string
+var sourceIP string
+var sourcePort int
+
 // connectCmd represents the connect command
 var connectCmd = &cobra.Command{
 	Use:   "connect",
@@ -39,16 +43,23 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		name_tag := args[0]
-
-		instance := *resource.NewInstanceFromNameTag(name_tag)
-		instance.CheckSecurityGroups("tcp", "10.0.0.0", 80)
+		nameTag := args[0]
+		fmt.Print("Searching for instance with name tag \"", nameTag, "\": ")
+		instance := *resource.NewInstanceFromNameTag(nameTag)
 		fmt.Println(*instance.InstanceId)
+		response := "ERROR"
+		if instance.CheckSecurityGroups(sourceProtocol, sourceIP, sourcePort) {
+			response = "OK"
+		}
+		fmt.Println("Security Groups: ", response)
 
 	},
 }
 
 func init() {
+	connectCmd.Flags().StringVarP(&sourceProtocol, "protocol", "p", "tcp", "The protcol being used to connect.")
+	connectCmd.Flags().StringVarP(&sourceIP, "ip", "i", "10.0.0.0", "The source IP being used to connect from.")
+	connectCmd.Flags().IntVarP(&sourcePort, "port", "P", 80, "The resource port attempt to connect to.")
 	RootCmd.AddCommand(connectCmd)
 
 	// Here you will define your flags and configuration settings.

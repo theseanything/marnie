@@ -32,14 +32,13 @@ func (i *Instance) CheckSecurityGroups(protocol string, ipAddress string, port i
 	var securityGroups []*SecurityGroup
 	for _, sg := range response.SecurityGroups {
 		s := SecurityGroup{*sg}
-		s.CheckIngress(protocol, ipAddress, port)
-		s.CheckEgress(protocol, ipAddress, port)
+		if s.CheckIngress(protocol, ipAddress, port) && s.CheckEgress(protocol, ipAddress, port) {
+			return true
+		}
 		securityGroups = append(securityGroups, &s)
 	}
 
-	fmt.Println(response)
-
-	return true
+	return false
 }
 
 // NewInstanceFromNameTag ityGroups checks id is in rules
@@ -67,6 +66,13 @@ func NewInstanceFromNameTag(value string) *Instance {
 			ids = append(ids, instance)
 		}
 	}
-
-	return &Instance{*ids[0]}
+	numberOfInstances := len(ids)
+	if numberOfInstances == 1 {
+		return &Instance{*ids[0]}
+	} else if numberOfInstances > 1 {
+		fmt.Println("Too many instances found.")
+		return nil
+	}
+	fmt.Println("No instance found.")
+	return nil
 }
