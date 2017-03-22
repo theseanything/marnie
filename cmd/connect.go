@@ -27,9 +27,23 @@ import (
 	"github.com/theseanything/marnie/resource"
 )
 
+// ResourceType is
+type ResourceType uint8
+
+const (
+	External = iota
+	Instance
+)
+
 var sourceProtocol string
 var sourceIP string
 var sourcePort int
+var sourceType ResourceType
+
+var nameTag string
+var instanceID string
+var targetIP string
+var destinationType ResourceType
 
 // connectCmd represents the connect command
 var connectCmd = &cobra.Command{
@@ -43,15 +57,33 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
+		var sourceResource Resource
+		var destinationResource Resource
+
+		sourceResource.CheckConnectionTo(protocol, destinationResource, port)
 		nameTag := args[0]
+
 		fmt.Print("Searching for instance with name tag \"", nameTag, "\": ")
 		instance := *resource.NewInstanceFromNameTag(nameTag)
 		fmt.Println(*instance.InstanceId)
-		response := "ERROR"
+
+		response := "NOPE"
+		if instance.CheckRouteTables(sourceProtocol, sourceIP, sourcePort) {
+			response = "OK"
+		}
+		fmt.Println("Route Tables: ", response)
+
+		response = "ERROR"
 		if instance.CheckSecurityGroups(sourceProtocol, sourceIP, sourcePort) {
 			response = "OK"
 		}
 		fmt.Println("Security Groups: ", response)
+
+		response = "ERROR"
+		if instance.CheckNACLs(sourceProtocol, sourceIP, sourcePort) {
+			response = "OK"
+		}
+		fmt.Println("NACLs: ", response)
 
 	},
 }

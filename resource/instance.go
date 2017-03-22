@@ -41,6 +41,83 @@ func (i *Instance) CheckSecurityGroups(protocol string, ipAddress string, port i
 	return false
 }
 
+// CheckNACLs checks id is in rules
+func (i *Instance) CheckNACLs(protocol string, ipAddress string, port int) bool {
+	sess := session.Must(session.NewSession())
+	svc := ec2.New(sess)
+
+	resp, err := svc.DescribeNetworkAcls(&ec2.DescribeNetworkAclsInput{
+		Filters: []*ec2.Filter{
+			&ec2.Filter{
+				Name:   aws.String("association.subnet-id"),
+				Values: []*string{aws.String(*i.SubnetId)},
+			},
+		},
+	})
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	for _, n := range resp.NetworkAcls {
+		for _, e := range n.Entries {
+			fmt.Println(e)
+		}
+	}
+
+	return false
+}
+
+// CheckRouteTables checks id is in rules
+func (i *Instance) CheckRouteTables(protocol string, ipAddress string, port int) bool {
+	var publicIPs []*string
+	var privateIPs []*string
+
+	for _, n := range i.NetworkInterfaces {
+		for _, a := range n.PrivateIpAddresses {
+			privateIPs = append(privateIPs, a.PrivateIpAddress)
+			if a.Association != nil {
+				publicIPs = append(publicIPs, a.Association.PublicIp)
+			}
+		}
+	}
+
+	sess := session.Must(session.NewSession())
+	svc := ec2.New(sess)
+
+	resp, err := svc.DescribeRouteTables(&ec2.DescribeRouteTablesInput{
+		Filters: []*ec2.Filter{
+			&ec2.Filter{
+				Name:   aws.String("association.subnet-id"),
+				Values: []*string{aws.String(*i.SubnetId)},
+			},
+		},
+	})
+
+	if len(resp.RouteTables) == 0 {
+		resp, err = svc.DescribeRouteTables(&ec2.DescribeRouteTablesInput{
+			Filters: []*ec2.Filter{
+				&ec2.Filter{
+					Name:   aws.String("association.main"),
+					Values: []*string{aws.String("true")},
+				},
+			},
+		})
+	}
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	for _, t := range resp.RouteTables {
+		fmt.Println(t)
+		routeTable := RouteTable{*t}
+		routeTable.CheckRoutes(*i.PublicIpAddress)
+	}
+
+	return false
+}
+
 // NewInstanceFromNameTag ityGroups checks id is in rules
 func NewInstanceFromNameTag(value string) *Instance {
 	sess := session.Must(session.NewSession())
