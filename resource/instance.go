@@ -118,20 +118,10 @@ func (i *Instance) CheckRouteTables(protocol string, ipAddress string, port int)
 	return false
 }
 
-// NewInstanceFromNameTag ityGroups checks id is in rules
-func NewInstanceFromNameTag(value string) *Instance {
+// NewInstance ityGroups checks id is in rules
+func NewInstance(params *ec2.DescribeInstancesInput) *Instance {
 	sess := session.Must(session.NewSession())
 	svc := ec2.New(sess)
-	params := &ec2.DescribeInstancesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name: aws.String("tag:Name"),
-				Values: []*string{
-					aws.String(value),
-				},
-			},
-		},
-	}
 	response, err := svc.DescribeInstances(params)
 	if err != nil {
 		fmt.Println("there was an error listing instances", err.Error())
@@ -151,5 +141,53 @@ func NewInstanceFromNameTag(value string) *Instance {
 		return nil
 	}
 	fmt.Println("No instance found.")
+	return nil
+}
+
+// NewInstanceFromNameTag ityGroups checks id is in rules
+func NewInstanceFromNameTag(value string) *Instance {
+	params := &ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name: aws.String("tag:Name"),
+				Values: []*string{
+					aws.String(value),
+				},
+			},
+		},
+	}
+	return NewInstance(params)
+}
+
+// NewInstanceFromId checks id is in rules
+func NewInstanceFromId(value string) *Instance {
+	params := &ec2.DescribeInstancesInput{
+		InstanceIds: []*string{&value},
+	}
+	return NewInstance(params)
+}
+
+// NewInstanceFromIp checks id is in rules
+func NewInstanceFromIp(value string) *Instance {
+	filters := []string{
+		"network-interface.addresses.private-ip-address",
+		"network-interface.ipv6-addresses.ipv6-address",
+		"network-interface.addresses.association.public-ip",
+	}
+	for _, filter := range filters {
+		params := &ec2.DescribeInstancesInput{
+			Filters: []*ec2.Filter{
+				{
+					Name: aws.String(filter),
+					Values: []*string{
+						aws.String(value),
+					},
+				},
+			},
+		}
+		if instance := NewInstance(params); instance != nil {
+			return instance
+		}
+	}
 	return nil
 }

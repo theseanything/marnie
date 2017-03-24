@@ -22,9 +22,26 @@ package cmd
 
 import (
 	"fmt"
+	"net"
+	"regexp"
 
 	"github.com/spf13/cobra"
+	"github.com/theseanything/marnie/resource"
 )
+
+type TargetResourceType uint8
+
+const (
+	IpAddress = iota
+	InstanceId
+	NameTag
+	None
+)
+
+type Target struct {
+	value  string
+	idType TargetResourceType
+}
 
 // checkCmd represents the check command
 var checkCmd = &cobra.Command{
@@ -37,8 +54,30 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Work your own magic here
-		fmt.Println("check called")
+
+		if len(args) < 1 {
+			fmt.Println("No arguments given.") // return instead
+		}
+
+		identifier := args[0]
+
+		var instance *resource.Instance
+		intro := func(value string) {
+			fmt.Println(fmt.Sprintf("Searching for instance where %v is %v", value, identifier))
+		}
+		if ip := net.ParseIP(identifier); ip != nil {
+			intro("IP Address")
+			instance = resource.NewInstanceFromIp(identifier)
+		} else if regexp.MustCompile("^i-[0-9a-f]{17}$").MatchString(identifier) {
+			intro("InstanceId")
+			instance = resource.NewInstanceFromId(identifier)
+		} else {
+			intro("Name Tag")
+			instance = resource.NewInstanceFromNameTag(identifier)
+		}
+
+		fmt.Println(*instance.InstanceId)
+
 	},
 }
 

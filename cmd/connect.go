@@ -57,10 +57,6 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 
-		var sourceResource Resource
-		var destinationResource Resource
-
-		sourceResource.CheckConnectionTo(protocol, destinationResource, port)
 		nameTag := args[0]
 
 		fmt.Print("Searching for instance with name tag \"", nameTag, "\": ")
