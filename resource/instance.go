@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"errors"
 	"fmt"
 	"log"
 
@@ -9,13 +10,21 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
+type Connection struct {
+	protocol string
+	srcIp    string
+	srcPort  string
+	destIp   string
+	destPort string
+}
+
 // Instance mimicks aws class
 type Instance struct {
 	ec2.Instance
 }
 
 // CheckSecurityGroups checks id is in rules
-func (i *Instance) CheckSecurityGroups(protocol string, ipAddress string, port int) bool {
+func (i *Instance) CheckSecurityGroups(conn Connection) (bool, bool, error) {
 
 	var groupIds []*string
 	for _, sg := range i.SecurityGroups {
@@ -29,16 +38,24 @@ func (i *Instance) CheckSecurityGroups(protocol string, ipAddress string, port i
 	}
 	response, _ := svc.DescribeSecurityGroups(params)
 
+	allowInbound := false
+	allowOutbound := false
+
 	var securityGroups []*SecurityGroup
 	for _, sg := range response.SecurityGroups {
 		s := SecurityGroup{*sg}
-		if s.CheckIngress(protocol, ipAddress, port) && s.CheckEgress(protocol, ipAddress, port) {
-			return true
+
+		if !allowInbound {
+			allowInbound, _ = s.CheckIngress(conn.protocol, conn.srcIp, conn.destPort)
 		}
-		securityGroups = append(securityGroups, &s)
+
+		if !allowOutbound {
+			allowOutbound, _ = s.CheckEgress(protocol, ipAddress, port)
+		}
+		//securityGroups = append(securityGroups, &s)
 	}
 
-	return false
+	return allowInbound, allowOutbound, nil
 }
 
 // CheckNACLs checks id is in rules
@@ -119,7 +136,7 @@ func (i *Instance) CheckRouteTables(protocol string, ipAddress string, port int)
 }
 
 // NewInstance ityGroups checks id is in rules
-func NewInstance(params *ec2.DescribeInstancesInput) *Instance {
+func NewInstance(params *ec2.DescribeInstancesInput) (*Instance, error) {
 	sess := session.Must(session.NewSession())
 	svc := ec2.New(sess)
 	response, err := svc.DescribeInstances(params)
@@ -134,18 +151,16 @@ func NewInstance(params *ec2.DescribeInstancesInput) *Instance {
 		}
 	}
 	numberOfInstances := len(ids)
-	if numberOfInstances == 1 {
-		return &Instance{*ids[0]}
+	if numberOfInstances == 0 {
+		return nil, errors.New("instance not found")
 	} else if numberOfInstances > 1 {
-		fmt.Println("Too many instances found.")
-		return nil
+		return nil, errors.New("too many instances found")
 	}
-	fmt.Println("No instance found.")
-	return nil
+	return &Instance{*ids[0]}, nil
 }
 
 // NewInstanceFromNameTag ityGroups checks id is in rules
-func NewInstanceFromNameTag(value string) *Instance {
+func NewInstanceFromNameTag(value string) (*Instance, error) {
 	params := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			{
@@ -160,7 +175,7 @@ func NewInstanceFromNameTag(value string) *Instance {
 }
 
 // NewInstanceFromId checks id is in rules
-func NewInstanceFromId(value string) *Instance {
+func NewInstanceFromId(value string) (*Instance, error) {
 	params := &ec2.DescribeInstancesInput{
 		InstanceIds: []*string{&value},
 	}
@@ -168,7 +183,7 @@ func NewInstanceFromId(value string) *Instance {
 }
 
 // NewInstanceFromIp checks id is in rules
-func NewInstanceFromIp(value string) *Instance {
+func NewInstanceFromIp(value string) (*Instance, error) {
 	filters := []string{
 		"network-interface.addresses.private-ip-address",
 		"network-interface.ipv6-addresses.ipv6-address",
@@ -185,9 +200,9 @@ func NewInstanceFromIp(value string) *Instance {
 				},
 			},
 		}
-		if instance := NewInstance(params); instance != nil {
-			return instance
+		if instance, err := NewInstance(params); instance != nil {
+			return instance, err
 		}
 	}
-	return nil
+	return nil, errors.New("could not find instance by ip")
 }

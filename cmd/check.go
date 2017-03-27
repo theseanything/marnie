@@ -29,7 +29,7 @@ import (
 	"github.com/theseanything/marnie/resource"
 )
 
-type TargetResourceType uint8
+type IdentifierType uint8
 
 const (
 	IpAddress = iota
@@ -40,8 +40,10 @@ const (
 
 type Target struct {
 	value  string
-	idType TargetResourceType
+	idType IdentifierType
 }
+
+var conn resource.Connection
 
 // checkCmd represents the check command
 var checkCmd = &cobra.Command{
@@ -59,42 +61,50 @@ to quickly create a Cobra application.`,
 			fmt.Println("No arguments given.") // return instead
 		}
 
-		identifier := args[0]
-
 		var instance *resource.Instance
-		intro := func(value string) {
-			fmt.Println(fmt.Sprintf("Searching for instance where %v is %v", value, identifier))
-		}
-		if ip := net.ParseIP(identifier); ip != nil {
-			intro("IP Address")
-			instance = resource.NewInstanceFromIp(identifier)
-		} else if regexp.MustCompile("^i-[0-9a-f]{17}$").MatchString(identifier) {
-			intro("InstanceId")
-			instance = resource.NewInstanceFromId(identifier)
-		} else {
-			intro("Name Tag")
-			instance = resource.NewInstanceFromNameTag(identifier)
+		var err error
+		identifier := args[0]
+		identifierType := parseIdentifier(identifier)
+
+		fmt.Println("Searching for EC2 instance...")
+		switch identifierType {
+		case IpAddress:
+			instance, err = resource.NewInstanceFromIp(identifier)
+		case InstanceId:
+			instance, err = resource.NewInstanceFromId(identifier)
+		case NameTag:
+			instance, err = resource.NewInstanceFromNameTag(identifier)
 		}
 
-		fmt.Println(*instance.InstanceId)
+		if err != nil {
+			fmt.Println("Error: ", err)
+		}
+
+		if instance != nil {
+			fmt.Println(*instance.InstanceId)
+			instance.CheckSecurityGroups(conn)
+		}
 
 	},
 }
 
 func init() {
-	checkCmd.Flags().StringVarP(&sourceProtocol, "protocol", "p", "tcp", "The protcol being used to connect.")
-	checkCmd.Flags().StringVarP(&sourceIP, "ip", "i", "10.0.0.0", "The source IP being used to connect from.")
-	checkCmd.Flags().IntVarP(&sourcePort, "port", "P", 80, "The resource port attempt to connect to.")
+	checkCmd.Flags().StringVarP(&conn.protocol, "protocol", "p", "tcp", "protocol used")
+	checkCmd.Flags().StringVarP(&conn.destIp, "dest-ip", "d", "22", "ip of the destination")
+	checkCmd.Flags().StringVarP(&conn.destPort, "dest-port", "D", "22", "port of the destination")
+	checkCmd.Flags().StringVarP(&conn.srcIp, "src-ip", "s", "", "ip of the source")
+	checkCmd.Flags().StringVarP(&conn.srcPort, "src-port", "S", "", "port of the source")
+
+	checkCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	RootCmd.AddCommand(checkCmd)
+}
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// checkCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// checkCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
+func parseIdentifier(value string) IdentifierType {
+	if ip := net.ParseIP(value); ip != nil {
+		return IpAddress
+	} else if regexp.MustCompile("^i-[0-9a-f]{17}$").MatchString(value) {
+		return InstanceId
+	} else {
+		return NameTag
+	}
 }
